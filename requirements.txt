@@ -1,0 +1,6 @@
+python-dotenv
+sounddevice
+numpy
+requests
+keyboard
+pyautogui 
