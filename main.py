@@ -63,11 +63,12 @@ def transcribe(audio, fs):
         return ""
 
 def main():
-    print("Hold F8 to record, release to transcribe and type at cursor...")
+    print("Hold SPACE key to record, release to transcribe and type at cursor...")
     fs = 16000
     while True:
-        keyboard.wait('f8')
-        print("Listening... (release F8 to stop)")
+        # Wait for spacebar to be pressed
+        keyboard.wait('space')
+        print("Listening... (release SPACE to stop)")
         audio = []
         recording = True
 
@@ -76,7 +77,7 @@ def main():
                 audio.append(indata.copy())
 
         with sd.InputStream(samplerate=fs, channels=1, dtype='int16', callback=callback):
-            while keyboard.is_pressed('f8'):
+            while keyboard.is_pressed('space'):
                 sd.sleep(50)
             recording = False
         print("Transcribing...")
