@@ -3,11 +3,11 @@ from dotenv import load_dotenv
 import sounddevice as sd
 import numpy as np
 import requests
-import keyboard
 import tempfile
 import wave
 import time
 import pyautogui
+from pynput import keyboard
 
 # Load environment variables
 load_dotenv()
@@ -63,33 +63,62 @@ def transcribe(audio, fs):
         return ""
 
 def main():
-    print("Hold CTRL+Z to record, release to transcribe and type at cursor...")
+    print("Hold SHIFT key to record, release to transcribe and type at cursor...")
     fs = 16000
-    while True:
-        # Wait for Ctrl+Z to be pressed
-        keyboard.wait('ctrl+z')
-        print("Listening... (release CTRL+Z to stop)")
-        audio = []
-        recording = True
-
-        def callback(indata, frames, time_info, status):
-            if recording:
-                audio.append(indata.copy())
-
-        with sd.InputStream(samplerate=fs, channels=1, dtype='int16', callback=callback):
-            while keyboard.is_pressed('ctrl+z'):
-                sd.sleep(50)
-            recording = False
-        print("Transcribing...")
-        if audio:
-            audio_np = np.concatenate(audio, axis=0)
-            text = transcribe(audio_np, fs)
-            print("You said:", text)
-            if text.strip():
-                print("Typing at cursor...")
-                pyautogui.typewrite(text)
-        else:
-            print("No audio captured.")
+    
+    # Create a listener for key press/release events
+    shift_pressed = False
+    audio = []
+    recording = False
+    listener = None
+    
+    def on_press(key):
+        nonlocal shift_pressed, audio, recording
+        # Check if pressed key is shift
+        if key == keyboard.Key.shift or key == keyboard.Key.shift_r:
+            if not shift_pressed:
+                shift_pressed = True
+                print("Listening... (release SHIFT to stop)")
+                audio = []
+                recording = True
+                
+                # Start recording in a separate thread to avoid blocking
+                def record_audio():
+                    nonlocal audio, recording
+                    def callback(indata, frames, time_info, status):
+                        if recording:
+                            audio.append(indata.copy())
+                    
+                    with sd.InputStream(samplerate=fs, channels=1, dtype='int16', callback=callback):
+                        while recording:
+                            sd.sleep(50)
+                
+                import threading
+                recording_thread = threading.Thread(target=record_audio)
+                recording_thread.daemon = True
+                recording_thread.start()
+    
+    def on_release(key):
+        nonlocal shift_pressed, audio, recording
+        # Check if released key is shift
+        if key == keyboard.Key.shift or key == keyboard.Key.shift_r:
+            if shift_pressed:
+                shift_pressed = False
+                recording = False
+                print("Transcribing...")
+                if audio:
+                    audio_np = np.concatenate(audio, axis=0)
+                    text = transcribe(audio_np, fs)
+                    print("You said:", text)
+                    if text.strip():
+                        print("Typing at cursor...")
+                        pyautogui.typewrite(text)
+                else:
+                    print("No audio captured.")
+    
+    # Start the listener
+    with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
+        listener.join()  # Keep the listener running
 
 if __name__ == "__main__":
     main() 
